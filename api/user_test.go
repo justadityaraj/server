@@ -49,7 +49,7 @@ func (s *UserSuite) BeforeTest(suiteName, testName string) {
 		s.notifiedAdd = true
 		return nil
 	})
-	s.a = &UserAPI{DB: s.db, UserChangeNotifier: s.notifier}
+	s.a = &UserAPI{DB: s.db, UserChangeNotifier: s.notifier, LocalAuthEnabled: true}
 }
 
 func (s *UserSuite) AfterTest(suiteName, testName string) {
@@ -487,6 +487,25 @@ func (s *UserSuite) Test_UpdatePassword_EmptyPassword() {
 	s.a.ChangePassword(s.ctx)
 
 	assert.Equal(s.T(), 400, s.recorder.Code)
+	user, err := s.db.GetUserByID(1)
+	assert.NoError(s.T(), err)
+	assert.NotNil(s.T(), user)
+	assert.True(s.T(), password.ComparePassword(user.Pass, []byte("old")))
+}
+
+func (s *UserSuite) Test_UpdatePassword_LocalAuthDisabled_Expect403() {
+	pw, err := password.CreatePassword("old", 5)
+	require.NoError(s.T(), err)
+	s.db.CreateUser(&model.User{ID: 1, Name: "jmattheis", Pass: pw})
+	s.a.LocalAuthEnabled = false
+
+	test.WithUser(s.ctx, 1)
+	s.ctx.Request = httptest.NewRequest("POST", "/user/current/password", strings.NewReader(`{"pass": "new"}`))
+	s.ctx.Request.Header.Set("Content-Type", "application/json")
+
+	s.a.ChangePassword(s.ctx)
+
+	assert.Equal(s.T(), 403, s.recorder.Code)
 	user, err := s.db.GetUserByID(1)
 	assert.NoError(s.T(), err)
 	assert.NotNil(s.T(), user)

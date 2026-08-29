@@ -63,6 +63,7 @@ type UserAPI struct {
 	PasswordStrength   int
 	UserChangeNotifier *UserChangeNotifier
 	Registration       bool
+	LocalAuthEnabled   bool
 }
 
 // GetUsers returns all the users
@@ -396,6 +397,11 @@ func (a *UserAPI) DeleteUserByID(ctx *gin.Context) {
 //	    schema:
 //	        $ref: "#/definitions/Error"
 func (a *UserAPI) ChangePassword(ctx *gin.Context) {
+	if !a.LocalAuthEnabled {
+		ctx.AbortWithError(403, errors.New("local authentication is disabled"))
+		return
+	}
+
 	pw := model.UserExternalPass{}
 	if err := ctx.Bind(&pw); err == nil {
 		if err := password.ValidateNewPassword(pw.Pass); err != nil {
